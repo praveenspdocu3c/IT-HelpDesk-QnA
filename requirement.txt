@@ -1,4 +1,4 @@
 streamlit
-llama-index
+llama_index
 re
 nest-asyncio
