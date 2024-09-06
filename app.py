@@ -3,7 +3,6 @@
 
 import streamlit as st
 import pandas as pd
-import re
 from langchain.document_loaders import PyMuPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_openai import AzureOpenAIEmbeddings, AzureChatOpenAI
