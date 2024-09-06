@@ -3,7 +3,7 @@
 
 import streamlit as st
 import pandas as pd
-from fpdf import FPDF # type: ignore
+from fpdf import FPDF
 import re
 from langchain_community.document_loaders import PyMuPDFLoader
 from langchain_community.document_loaders import PyMuPDFLoader
