@@ -1,0 +1,12 @@
+streamlit
+pandas
+fpdf==1.7.2
+PyMuPDF
+langchain
+langchain_community
+langchain_openai
+langchain_chroma
+langchain_core
+langchain_postgres
+psycopg2-binary
+re
