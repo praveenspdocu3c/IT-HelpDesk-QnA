@@ -3,7 +3,6 @@
 
 import streamlit as st
 import pandas as pd
-from fpdf import FPDF
 import re
 from langchain_community.document_loaders import PyMuPDFLoader
 from langchain_community.document_loaders import PyMuPDFLoader
@@ -13,7 +12,12 @@ from langchain_chroma import Chroma
 from langchain_community.document_transformers import LongContextReorder
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.prompts import PromptTemplate
-
+try:
+    from fpdf import FPDF
+except ImportError:
+    import os
+    os.system('pip install fpdf')
+    from fpdf import FPDF
 
 # Azure OpenAI settings
 api_key = "783973291a7c4a74a1120133309860c0"  # Replace with your Azure API key
@@ -84,7 +88,6 @@ if uploaded_csv is not None:
         db = PGVector(embeddings=embeddings_model, collection_name=collection_name, connection=connection, use_jsonb=True)
         
         db.delete() 
-        print("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ Embeddings ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
 
         # db.add_documents(enhanced_documents, ids=[doc.metadata["serial_number"] for doc in enhanced_documents])
         
