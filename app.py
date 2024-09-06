@@ -4,11 +4,11 @@
 import streamlit as st
 import pandas as pd
 import re
-from langchain_community.document_loaders import PyMuPDFLoader
+from langchain.document_loaders import PyMuPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_openai import AzureOpenAIEmbeddings, AzureChatOpenAI
 from langchain_chroma import Chroma
-from langchain_community.document_transformers import LongContextReorder
+from langchain.document_transformers import LongContextReorder
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.prompts import PromptTemplate
 from fpdf import FPDF
