@@ -3,7 +3,6 @@ pandas
 fpdf==1.7.2
 PyMuPDF
 langchain
-git+https://github.com/hwchase17/langchain@master#egg=langchain_community
 langchain_openai
 langchain_chroma
 langchain_core
