@@ -1,6 +1,6 @@
 streamlit
 pandas
-fpdf
+fpdf==1.7.2
 PyMuPDF
 langchain
 langchain_community
