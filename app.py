@@ -2,176 +2,149 @@
 
 
 import streamlit as st
-from llama_index.llms.azure_openai import AzureOpenAI
-from llama_index.embeddings.azure_openai import AzureOpenAIEmbedding
-from llama_index.core import VectorStoreIndex, SimpleDirectoryReader
-from llama_index.core.node_parser import SentenceWindowNodeParser
-from llama_index.core.node_parser import SentenceSplitter
-from llama_index.core.postprocessor import MetadataReplacementPostProcessor
+import pandas as pd
+from fpdf import FPDF # type: ignore
 import re
+from langchain_community.document_loaders import PyMuPDFLoader
+from langchain_community.document_loaders import PyMuPDFLoader
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_openai import AzureOpenAIEmbeddings, AzureChatOpenAI
+from langchain_chroma import Chroma
+from langchain_community.document_transformers import LongContextReorder
+from langchain.chains.combine_documents import create_stuff_documents_chain
+from langchain_core.prompts import PromptTemplate
 
-from llama_index.core.ingestion import IngestionPipeline
-from llama_index.core.schema import MetadataMode
-from llama_index.core.extractors import BaseExtractor
-
-from llama_index.core.postprocessor import LLMRerank
-from llama_index.core import Settings
-import logging
-import sys
-import nest_asyncio
-nest_asyncio.apply()
-
-logging.basicConfig(
-    stream=sys.stdout, level=logging.INFO
-)  # logging.DEBUG for more verbose output
-logging.getLogger().addHandler(logging.StreamHandler(stream=sys.stdout))
-
-# Streamlit application
-st.title("IT HelpDesk QnA")
 
 # Azure OpenAI settings
-api_key = "6e9d4795bb89425286669b5952afe2fe"
-azure_endpoint = "https://danielingitaraj-gpt4turbo.openai.azure.com/"
-api_version = "2024-02-01" 
-
-llm = AzureOpenAI(
-    model="gpt-4",
-    deployment_name="GPT4Turbo",
-    api_key=api_key,
-    azure_endpoint=azure_endpoint,
-    api_version=api_version,
-)
-
-embed_model = AzureOpenAIEmbedding(
-    model="text-embedding-3-large",
-    deployment_name="text-embedding-3-large",
-    api_key=api_key,
-    azure_endpoint=azure_endpoint,
-    api_version=api_version,
-)
-
-# Create the sentence window node parser with default settings
-node_parser = SentenceWindowNodeParser.from_defaults(
-    window_size=3,
-    window_metadata_key="window",
-    original_text_metadata_key="original_text",
-)
-
-# Base node parser is a sentence splitter
-text_splitter = SentenceSplitter()
-
-# Configure settings
-Settings.llm = llm
-Settings.embed_model = embed_model
-Settings.text_splitter = text_splitter
+api_key = "783973291a7c4a74a1120133309860c0"  # Replace with your Azure API key
+azure_endpoint = "https://theswedes.openai.azure.com/"
+api_version = "2024-02-01"
 
 
-# Preprocessing function to replace Unicode values with respective characters
-def preprocess_text(text):
-    # Add more replacements as needed
-    replacements = {
-        "&ldquo;": "“",
-        "&rdquo;": "”",
-        "&lsquo;": "‘",
-        "&rsquo;": "’",
-        "&quot;": '"',
-        "&amp;": "&",
-        "&lt;": "<",
-        "&gt;": ">",
-        "&mdash;": "—",
-        "&ndash;": "–",
-        "&hellip;": "…",
-        "&copy;": "©",
-        "&reg;": "®",
-        "&euro;": "€",
-        "&cent;": "¢",
-        "&pound;": "£",
-        "&yen;": "¥",
-        "&deg;": "°",
-        # Add more HTML entity replacements as needed
-    }
+# CSV to PDF Conversion Function
+def csv_to_pdf(dataframe, output_filename):
+    pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.add_page()
+    pdf.set_font("Arial", size=12)
     
-    for unicode_val, char in replacements.items():
-        text = re.sub(unicode_val, char, text)
+    for i in range(len(dataframe)):
+        row = dataframe.iloc[i]
+        for col in dataframe.columns:
+            pdf.multi_cell(0, 10, f"{col}: {row[col]}", border=0)
+        pdf.ln(10)  # Add space after each row
+
+    pdf.output(output_filename)
     
-    return text
+# Streamlit UI
+st.title("IT HelpDesk QnA")
 
+# File uploader for CSV
+uploaded_csv = st.sidebar.file_uploader("Upload a CSV file", type=["csv"])
 
-# File uploader
-uploaded_file = st.sidebar.file_uploader("Choose a PDF file", type=["pdf"])
+if uploaded_csv is not None:
+    try:
+        # Read CSV
+        df = pd.read_csv(uploaded_csv, encoding='ISO-8859-1')
+        
+        # Convert CSV to PDF
+        output_pdf = "output.pdf"
+        csv_to_pdf(df, output_pdf)
+        st.write("CSV converted to PDF successfully!")
+        
+        loader = PyMuPDFLoader(output_pdf)
+        data = loader.load()
 
-if uploaded_file is not None:
-    # Saving uploaded file
-    with open("uploaded_file.pdf", "wb") as f:
-        f.write(uploaded_file.read())
+        st.write("Document Ingested Successfully.")
 
-    # Loading document
-    documents1 = SimpleDirectoryReader(
-        input_files=["uploaded_file.pdf"]
-    ).load_data()
+        # Split the documents
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=1024, chunk_overlap=128)
+        texts = text_splitter.split_documents(data)
 
-    # Preprocess the text in the document
-    for doc in documents1:
-        doc.text = preprocess_text(doc.text)  # Apply preprocessing
-
-    class CustomExtractor(BaseExtractor):
-        async def aextract(self, nodes):
-            keywords = [
-                "Resolution",
-                "Problem:",
-                "PROBLEM/ISSUE:",
-            ]
-
-            metadata_list = []
-            for node in nodes:
-                custom_metadata = {}
-                for keyword in keywords:
-                    if keyword in node.metadata:
-                        custom_metadata[keyword] = node.metadata[keyword]
-                metadata_list.append({"custom": custom_metadata})
-
-            return metadata_list
-
-    extractors = [
-        CustomExtractor()
-    ]
-    transformations = [text_splitter] + extractors
-
-    pipeline = IngestionPipeline(transformations=transformations)
-    documents = pipeline.run(documents=documents1)
-
-    st.write("Document Ingested Successfully.")
-
-    # Extract nodes
-    nodes = node_parser.get_nodes_from_documents(documents)
-    nodes1 = node_parser.get_nodes_from_documents(documents1)
-
-    # Build sentence index
-    sentence_index = VectorStoreIndex(nodes1 + nodes)
-
-    # MetadataReplacementPostProcessor
-    query_engine = sentence_index.as_query_engine(
-        similarity_top_k=30,
-        node_postprocessors=[
-            MetadataReplacementPostProcessor(target_metadata_key="window")
-        ],
-    )
-
-    # Ask user for problem input as a message
-    user_problem = st.text_area("Describe the problem you want to find a resolution:")
-
-    if st.button("Get Resolution"):
-        # Query engine with user problem input
-        window_response = query_engine.query(
-            f"""What is the Resolution for the below mentioned Problem:
-                Problem: {user_problem}"""
+        # Initialize embeddings
+        embeddings_model = AzureOpenAIEmbeddings(
+            model="text-embedding-3-large",
+            deployment="TextEmbeddingLarge",
+            api_version=api_version,
+            azure_endpoint=azure_endpoint,
+            openai_api_key=api_key
         )
+        
+        # Process the documents in batches
+        # batch_size = 10  # You can adjust the batch size based on your requirements
+        # for i in range(0, len(texts), batch_size):
+        #     batch_texts = texts[i:i + batch_size]
+        #                 # Store each batch in Chroma DB
+        #     db = Chroma.from_documents(embedding=embeddings_model, documents=batch_texts)
+        #     print("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ embeddings ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+        
+        from langchain_postgres.vectorstores import PGVector
+        connection = "postgresql+psycopg://citus:Admin123@c-it-helpdisk-qna.edgw3kbkcr5txn.postgres.cosmos.azure.com:5432/citus?sslmode=require"
+        collection_name = "citus"
+        db = PGVector(embeddings=embeddings_model, collection_name=collection_name, connection=connection, use_jsonb=True)
+        
+        db.delete() 
+        print("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ Embeddings ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
 
-        # Display response
-        st.markdown("### Query Result:")
-        st.write(window_response)
+        # db.add_documents(enhanced_documents, ids=[doc.metadata["serial_number"] for doc in enhanced_documents])
+        
+        # Process the documents in batches
+        batch_size = 100  # You can adjust the batch size based on your requirements
+        for i in range(0, len(texts), batch_size): 
+                batch_texts = texts[i:i + batch_size]
+                db.add_documents(batch_texts)
+        
+        # # Create a Chroma database
+        # db = Chroma.from_documents(embedding=embeddings_model, documents=texts)        
+        # Ask user for problem input as a message
+        user_problem = st.text_input("Describe the problem you want to find a resolution:")
 
-        # Show the original sentence retrieved and the window
-        window = window_response.source_nodes[0].node.metadata["window"]
-        st.markdown("### Retrieved Window:")
-        st.write(window)
+        retriever = db.as_retriever(search_kwargs={"k": 10})        
+    
+        if st.button("Get Resolution"):
+            # Create a retriever
+
+            query = f"What is the Resolution for the below-mentioned Problem: {user_problem}"
+
+            # Retrieve relevant documents
+            docs = retriever.invoke(query)
+
+            # Reorder the documents
+            reordering = LongContextReorder()
+            reordered_docs = reordering.transform_documents(docs)
+
+            # Initialize the LLM
+            llm = AzureChatOpenAI(
+                api_version=api_version,
+                azure_endpoint=azure_endpoint,
+                openai_api_key=api_key,
+                model="gpt-4o-mini",
+                base_url=None,
+                azure_deployment="GPT-4o-mini"
+            )
+            llm.validate_base_url = False
+
+            # Create the prompt template
+            prompt_template = """
+            Given these texts:
+            -----
+            {context}
+            -----
+            Please answer the following question in detail:
+            {query}
+            """
+
+            prompt = PromptTemplate(
+                template=prompt_template,
+                input_variables=["context", "query"],
+            )
+
+            # Create and invoke the chain
+            chain = create_stuff_documents_chain(llm, prompt)
+            response = chain.invoke({"context": reordered_docs, "query": query})
+
+            # Display the response
+            st.write("## Resolution:")
+            st.write(response)
+    except Exception as e:
+        st.error(f"Error processing file: {e}")
