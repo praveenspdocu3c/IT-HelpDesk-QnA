@@ -1,6 +1,12 @@
 streamlit
-llama-index
-llama-index-embeddings-azure-openai
-llama-index-llms-azure-openai
+pandas
+fpdf
+PyMuPDF
+langchain
+langchain_community
+langchain_openai
+langchain_chroma
+langchain_core
+langchain_postgres
+psycopg2-binary
 re
-nest-asyncio
