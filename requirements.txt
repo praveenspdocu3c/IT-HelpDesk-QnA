@@ -2,6 +2,7 @@ streamlit
 pandas
 fpdf==1.7.2
 PyMuPDF
+langchain-community
 langchain
 langchain_openai
 langchain_chroma
