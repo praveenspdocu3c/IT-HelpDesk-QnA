@@ -6,7 +6,7 @@ import pandas as pd
 from langchain.document_loaders import PyMuPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_openai import AzureOpenAIEmbeddings, AzureChatOpenAI
-from langchain_chroma import Chroma
+from langchain_postgres.vectorstores import PGVector
 from langchain.document_transformers import LongContextReorder
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.prompts import PromptTemplate
@@ -75,7 +75,7 @@ if uploaded_csv is not None:
         #     db = Chroma.from_documents(embedding=embeddings_model, documents=batch_texts)
         #     print("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ embeddings ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
         
-        from langchain_postgres.vectorstores import PGVector
+
         connection = "postgresql+psycopg://citus:Admin123@c-it-helpdisk-qna.edgw3kbkcr5txn.postgres.cosmos.azure.com:5432/citus?sslmode=require"
         collection_name = "citus"
         db = PGVector(embeddings=embeddings_model, collection_name=collection_name, connection=connection, use_jsonb=True)
